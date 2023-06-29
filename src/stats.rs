@@ -4,7 +4,9 @@ use crate::load::load_gfa;
 use crate::utils::{self, GFAGraphLookups};
 use crate::{gfa::gfa::GFAtk, gfa::graph::segments_subgraph, load::load_gfa_stdin};
 use anyhow::{bail, Result};
-use petgraph::algo::is_cyclic_directed;
+use petgraph::algo::{is_cyclic_directed,tarjan_scc};
+use petgraph::graph::{Graph, NodeIndex, UnGraph};
+use std::collections::HashMap;
 
 /// Enumeration of the genomes we are interested in.
 #[derive(PartialEq, Clone, Copy)]
@@ -248,87 +250,23 @@ pub fn stats(
 
     // load gfa into graph structure
     let (graph_indices, gfa_graph) = gfa.into_digraph()?;
-
-    let subgraphs = gfa_graph.weakly_connected_components(graph_indices)?;
-
-    let mut no_subgraphs = 0;
-    let mut store_stats = Stats(Vec::new());
-
-    for id_set in &subgraphs {
-        let subgraph_gfa = GFAtk(segments_subgraph(&gfa.0, id_set.to_vec()));
-
-        let (graph_indices_subgraph, subgraph) = subgraph_gfa.into_digraph()?;
-
-        // we want to see if the subgraph is circular.
-        let is_circular = is_cyclic_directed(&subgraph.0);
-
-        // print stats
-        if !tabular && genome_type == GenomeType::None {
-            println!("Subgraph {}:", no_subgraphs + 1);
-            println!("\tNumber of nodes/segments: {}", subgraph.node_count());
-            println!("\tNumber of edges/links: {}", subgraph.edge_count());
-            println!("\tCircular: {}", is_circular);
-            // equivalent to id_set
-            println!("{}", graph_indices_subgraph);
-        }
-
-        let (avg_gc, cov, total_sequence_length) =
-            subgraph_gfa.sequence_stats(genome_type, tabular)?;
-
-        store_stats.push(Stat {
-            index: no_subgraphs,
-            node_count: subgraph.node_count(),
-            edge_count: subgraph.edge_count(),
-            graph_indices_subgraph,
-            gc: avg_gc,
-            cov,
-            segments: id_set.clone(),
-            total_sequence_length,
-            is_circular,
-        });
-
-        no_subgraphs += 1;
-    }
-
-    if tabular {
-        // print tabular data
-        store_stats.print_tabular();
-    }
-
-    // if we want to do more stat things
-    match genome_type {
-        GenomeType::Mitochondria => {
-            // should be safe to unwrap?
-            let mito_args = mito_args.unwrap();
-            return Ok(Some((
-                gfa,
-                store_stats.extract_organelle(
-                    mito_args.0,
-                    mito_args.1,
-                    mito_args.2,
-                    mito_args.3,
-                )?,
-            )));
-        }
-        GenomeType::Chloroplast => {
-            // safe to unwrap here too.
-            let chloro_args = chloro_args.unwrap();
-            return Ok(Some((
-                gfa,
-                store_stats.extract_organelle(
-                    chloro_args.0,
-                    chloro_args.1,
-                    chloro_args.2,
-                    chloro_args.3,
-                )?,
-            )));
-        }
-        GenomeType::None => {
-            if !tabular {
-                println!("Total number of subgraphs: {}", no_subgraphs)
-            }
-        }
+    let X = tarjan_scc(&gfa_graph.0);
+    let Y = invert(graph_indices);
+    for SCC in X.iter(){
+      if SCC.len() > 5 {
+        let mut Z: Vec<_> = SCC.iter().map(|x| Y[x]).collect::<Vec<_>>();
+        Z.sort();
+        println!("{} {}",Z.first().unwrap()-1,Z.last().unwrap()+1);
+      }
     }
 
     Ok(None)
+}
+
+fn invert(map: HashMap<usize,NodeIndex>) -> HashMap<NodeIndex,usize> {
+    let mut invert = HashMap::new();
+    for (key, value) in map.into_iter() {
+        invert.insert(value, key);
+    }
+    return invert;
 }

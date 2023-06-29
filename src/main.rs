@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{crate_version, value_parser, Arg, ArgAction, Command};
 use gfatk::{
-    dot, extract, extract_chloro, extract_mito, fasta, linear, overlap, path, rename,
+    dot, extract, extract_chloro, extract_mito, fasta,  overlap, path, rename,
     stats::{self, GenomeType},
     trim,
 };
@@ -283,9 +283,6 @@ fn main() -> Result<()> {
         }
         Some(("extract", matches)) => {
             extract::extract(matches)?;
-        }
-        Some(("linear", matches)) => {
-            linear::linear(matches)?;
         }
         Some(("fasta", matches)) => {
             fasta::fasta(matches)?;

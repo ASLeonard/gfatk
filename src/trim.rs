@@ -39,11 +39,6 @@ pub fn trim(matches: &clap::ArgMatches) -> Result<()> {
 
     let (graph_indices, gfa_graph) = gfa.into_digraph()?;
 
-    let trimmed = gfa_graph.trim(graph_indices);
-
-    let subgraph = segments_subgraph(&gfa.0, trimmed);
-
-    println!("{}", gfa_string(&subgraph));
 
     Ok(())
 }
