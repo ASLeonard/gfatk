@@ -1,5 +1,5 @@
-use crate::gfa::gfa::GFAtk;
-use crate::utils::{format_usize_to_kb, GFAGraphLookups};
+//use crate::gfa::gfa::GFAtk;
+//use crate::utils::{format_usize_to_kb, GFAGraphLookups};
 use anyhow::{bail, Context, Result};
 use gfa::gfa::Orientation;
 use gfa::gfa::GFA;
@@ -16,61 +16,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 /// A wrapper of petgraph's undirected `Graph` struct, applied to a GFA. No weights.
-pub struct GFAungraph(pub Graph<usize, (), Undirected>);
 
-impl GFAungraph {
-    /// The algorithm called in `gfatk extract`.
-    ///
-    /// The number of iterations of searching for neighbouring nodes can be modified.
-    ///
-    /// It's a naive algorithm, but it's fast enough for our purposes.
-    pub fn recursive_search(
-        &self,
-        sequence_id: Vec<usize>,
-        iterations: i32,
-        mut collect_sequence_names: Vec<NodeIndex>,
-        graph_indices: GFAGraphLookups,
-    ) -> Result<Vec<usize>> {
-        let gfa_graph = &self.0;
-
-        eprintln!(
-            "[+]\tRecursively searching around nodes {:?} at depth {}",
-            sequence_id, iterations
-        );
-
-        let mut iteration = 0;
-        loop {
-            // collect all the neighbours of all the current node indices
-            for index in collect_sequence_names.clone() {
-                for c in gfa_graph.neighbors(index) {
-                    // could possibly add a conditional in here.
-                    collect_sequence_names.push(c);
-                }
-            }
-            // add sorting and deduping here too
-            // yes otherwise vectors are enormous.
-            collect_sequence_names.sort();
-            collect_sequence_names.dedup();
-
-            iteration += 1;
-            if iteration == iterations {
-                break;
-            }
-        }
-
-        collect_sequence_names.sort();
-        collect_sequence_names.dedup();
-
-        let mut sequences_to_keep = Vec::new();
-        // turn node indexes into sequence ID's
-        for index in collect_sequence_names {
-            let t = graph_indices.node_index_to_seg_id(index)?;
-            sequences_to_keep.push(t);
-        }
-
-        Ok(sequences_to_keep)
-    }
-}
 
 // weights are the orientations, used at various points, and an optional
 // coverage weight, used in gfatk linear.
@@ -87,80 +33,12 @@ impl GFAdigraph {
     /// <https://docs.rs/petgraph/latest/src/petgraph/dot.rs.html#1-349>
     ///
     /// Generating a DOT language output of a GFA file.
-    pub fn dot(&self, gfa: GFAtk) -> Result<()> {
-        let gfa_graph = &self.0;
-        static INDENT: &str = "    ";
-
-        Ok(())
-    }
     // we want weakly connected components, as there may only be an edge in one
     // orientation (perhaps unlikely... but still)
 
     /// Split the GFA digraph into subgraphs which are the weakly connected components of the graph.
     ///
     /// Taken from <https://github.com/Qiskit/retworkx/blob/79900cf8da0c0665ac5ce1ccb0f57373434b14b8/src/connectivity/mod.rs>
-    pub fn weakly_connected_components(
-        &self,
-        graph_indices: GFAGraphLookups,
-    ) -> Result<Vec<Vec<usize>>> {
-        let graph = &self.0;
-        let mut seen: HashSet<NodeIndex> = HashSet::with_capacity(graph.node_count());
-        let mut out_vec: Vec<Vec<usize>> = Vec::new();
-
-        for node in graph.node_indices() {
-            if !seen.contains(&node) {
-                // BFS node generator
-
-                let mut component_set: std::collections::BTreeSet<NodeIndex> =
-                    std::collections::BTreeSet::new();
-
-                let mut bfs_seen: HashSet<NodeIndex> = HashSet::new();
-
-                let mut next_level: HashSet<NodeIndex> = HashSet::new();
-
-                next_level.insert(node);
-
-                while !next_level.is_empty() {
-                    let this_level = next_level;
-
-                    next_level = HashSet::new();
-
-                    for bfs_node in this_level {
-                        if !bfs_seen.contains(&bfs_node) {
-                            component_set.insert(bfs_node);
-
-                            bfs_seen.insert(bfs_node);
-
-                            for neighbor in graph.neighbors_undirected(bfs_node) {
-                                next_level.insert(neighbor);
-                            }
-                        }
-                    }
-                }
-                let set_to_vec: Vec<_> = component_set.iter().cloned().collect();
-                // convert node indices to segment ID's
-                let x = set_to_vec
-                    .iter()
-                    .map(|e| {
-                        let seg_id = match graph_indices.node_index_to_seg_id(*e) {
-                            Ok(s) => s,
-                            Err(err) => bail!(
-                                "NodeIndex {:?} could not be converted to segment ID.\n{}",
-                                e,
-                                err
-                            ),
-                        };
-                        Ok(seg_id)
-                    })
-                    .collect::<Result<Vec<usize>>>();
-
-                out_vec.push(x?);
-
-                seen.extend(bfs_seen);
-            }
-        }
-        Ok(out_vec)
-    }
 
     /// The main function called from `gfatk linear`.
     ///
@@ -182,64 +60,6 @@ impl GFAdigraph {
         gfa_graph.edge_count()
     }
 
-    /// Trim a graph to include only nodes connected to two or more other nodes.
-    ///
-    /// This algorithm will loop for as long as the longest branch in the GFA yields a segment connected to only a single node.
-    pub fn trim(&self, graph_indices: GFAGraphLookups) -> Vec<usize> {
-        let gfa_graph = &self.0;
-
-        let mut all_nodes = HashSet::new();
-        // get all node indices into a hashset
-        for (node_index, _) in gfa_graph.node_references() {
-            all_nodes.insert(node_index);
-        }
-
-        // initiate new hashset for the nodes we remove
-        let mut removed_nodes = HashSet::new();
-        // keep track of the number of removed nodes in a vector
-        let mut track_removed_nodes = Vec::new();
-        // index for the above vector, keeping track of iterations
-        let mut index = 0;
-        loop {
-            // iterate over the nodes
-            for (node_index, _) in gfa_graph.node_references() {
-                // how many neighbours for this particular node?
-                let neighbours = gfa_graph.neighbors(node_index).collect::<HashSet<_>>();
-
-                // if there are fewer than two neighbours
-                // OR the difference between neighbours & removed nodes == 1
-                if neighbours.len() < 2
-                    || neighbours
-                        .difference(&removed_nodes)
-                        .collect::<HashSet<_>>()
-                        .len()
-                        == 1
-                {
-                    removed_nodes.insert(node_index);
-                }
-            }
-            // push the length
-            // if the previous length is the same as the current,
-            // there are no more nodes to delete.
-            track_removed_nodes.push(removed_nodes.len());
-            if track_removed_nodes.get(index).unwrap()
-                == track_removed_nodes.get(index - 1).unwrap_or(&0)
-            {
-                break;
-            }
-            index += 1;
-        }
-        // print for user info
-        for el in &removed_nodes {
-            let seg_id = graph_indices.node_index_to_seg_id(*el).unwrap();
-            eprintln!("[+]\tRemoved segment {} from GFA.", seg_id);
-        }
-
-        all_nodes
-            .difference(&removed_nodes)
-            .map(|e| graph_indices.node_index_to_seg_id(*e).unwrap())
-            .collect::<Vec<_>>()
-    }
 }
 
 /// A function generic over certain types of `Directed` petgraph `Graph`s.
