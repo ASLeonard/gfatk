@@ -31,7 +31,7 @@ fn main() -> Result<()> {
                         .value_parser(value_parser!(usize))
                         .help("min SSC size to consider."),
                 ),
-        )
+        ).get_matches();
                 
 
     match matches.subcommand() {

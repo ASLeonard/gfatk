@@ -4,6 +4,7 @@ use crate::load::load_gfa;
 //use crate::utils::{self, GFAGraphLookups};
 //use crate::{gfa::graph::segments_subgraph, load::load_gfa_stdin};
 use crate::{gfa::graph::GFAdigraph};
+use crate::{gfa::gfa::into_digraph};
 use anyhow::{bail, Result};
 use petgraph::algo::{is_cyclic_directed,tarjan_scc};
 use petgraph::graph::{Graph, NodeIndex, UnGraph};
@@ -36,7 +37,7 @@ pub fn get_strong_terminal_nodes(
     */
 
     // load gfa into graph structure
-    let (node_to_index, gfa_graph) = gfa.into_digraph()?;
+    let (node_to_index, gfa_graph) = into_digraph(gfa)?;
     let SSCs = tarjan_scc(&gfa_graph.0);
     let index_to_node = invert(node_to_index);
 
