@@ -14,7 +14,6 @@ pub fn get_strong_terminal_nodes(
     matches: &clap::ArgMatches,
 ) -> Result<Option<(GFAdigraph, Vec<usize>)>> {
     let gfa_file = matches.get_one::<PathBuf>("GFA").expect("Shit on it");
-    let tabular = matches.get_flag("tabular");
     
     let gfa = load_gfa(gfa_file).expect("k");
     
@@ -38,10 +37,13 @@ pub fn get_strong_terminal_nodes(
 
     // load gfa into graph structure
     let (node_to_index, gfa_graph) = into_digraph(gfa)?;
+    eprintln!("[+]\tFinished reading GFA into a directed graph.");
     let SSCs = tarjan_scc(&gfa_graph.0);
+
+    eprintln!("[+]\tFinished reading GFA into a directed graph.");
     let index_to_node = invert(node_to_index);
 
-    let min_length = *matches.get_one::<usize>("size").expect("defaulted by clap");
+    let min_length = *matches.get_one::<usize>("Size").expect("defaulted by clap");
 
     for SCC in SSCs.iter(){
       if SCC.len() >= min_length {

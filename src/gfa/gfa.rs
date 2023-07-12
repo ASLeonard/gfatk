@@ -23,7 +23,7 @@ use std::collections::HashMap;
         eprintln!("[+]\tReading GFA into a directed graph.");
         let mut gfa_graph: Graph<usize, ()> = Graph::with_capacity(gfa.segments.len(),gfa.links.len());
 
-        eprintln!("[+]\tPopulating nodes.");
+        eprintln!("[+]\tPopulating {} nodes.",gfa.segments.len());
 
         let mut graph_indices = HashMap::<usize,NodeIndex>::new();
         // read the segments into graph nodes
@@ -32,7 +32,7 @@ use std::collections::HashMap;
             let index = gfa_graph.add_node(node.name);
             graph_indices.insert(node.name,index);
         }
-        eprintln!("[+]\tPopulating edges for {}.",gfa.links.len());
+        eprintln!("[+]\tPopulating {} edges.",gfa.links.len());
         // populate the edges
         for edge in &gfa.links {
             let from = edge.from_segment;
