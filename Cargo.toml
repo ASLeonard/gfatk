@@ -15,6 +15,11 @@ keywords = ["gfa", "gfatk", "assembly", "genome"]
 categories = ["command-line-utilities"]
 license = "MIT"
 
+[profile.release]
+panic = "abort"
+lto = "fat"
+codegen-units = 1
+
 [dependencies]
 bstr = "1.4.0"
 petgraph = "0.6.0"
